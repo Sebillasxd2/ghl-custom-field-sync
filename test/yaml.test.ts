@@ -45,6 +45,19 @@ items:
   );
 });
 
+test("a quote inside a plain value is a character, so the comment after it is still a comment", () => {
+  assert.deepEqual(parseYaml(`name: Owner's Name # c\nplaceholder: 5" pipe # c\nlist: [Owner's, "a, b"]`), {
+    name: "Owner's Name",
+    placeholder: '5" pipe',
+    list: ["Owner's", "a, b"],
+  });
+});
+
+test("a flow list with an empty item is refused", () => {
+  assert.throws(() => parseYaml("options: [a, b,]"), /line 1: empty item in flow list/);
+  assert.throws(() => parseYaml("options: [a, , b]"), /empty item in flow list/);
+});
+
 test("errors carry the line number", () => {
   assert.throws(() => parseYaml("a: 1\n  b: 2"), /line 2: unexpected indentation/);
   assert.throws(() => parseYaml("a: 1\na: 2"), /line 2: duplicate key "a"/);

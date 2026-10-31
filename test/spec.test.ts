@@ -45,6 +45,15 @@ test("option types need options; other types refuse them", () => {
   assert.match(problemsOf({ object: "contact", fields: [field({ type: "DROPDOWN" })] })[0] ?? "", /is not one of/);
 });
 
+test("a misspelled or mistyped key is a problem, not something to ignore", () => {
+  const problems = problemsOf({ object: "contact", positionstart: 100, folder: 3, fields: [field({ placehlder: "x" })] });
+  assert.ok(problems.includes('unknown top-level key "positionstart"'), problems.join("; "));
+  assert.ok(problems.includes("folder must be a string"));
+  assert.ok(problems.includes('fields[0]: unknown key "placehlder"'));
+  assert.ok(problemsOf({ object: "contact", positionStart: "100", fields: [field()] }).includes("positionStart must be a number"));
+  assert.ok(problemsOf({ object: "contact", fields: [field({ position: "5" })] }).includes("fields[0]: position must be a number"));
+});
+
 test("the document itself must describe contact fields", () => {
   assert.match(problemsOf({ object: "opportunity", fields: [field()] })[0] ?? "", /object must be "contact"/);
   assert.match(problemsOf({ object: "contact", fields: [] })[0] ?? "", /non-empty list/);

@@ -94,7 +94,7 @@ The token needs read and write access to the location's custom fields.
 
 ## Known gaps
 
-- **The key of a new field.** Today the sync creates the field by name and compares the key GHL returns with the spec, stopping on a mismatch. To confirm: whether your account lets you choose the key on creation. The in-memory fake derives it from the name, so the example spec names fields to match their keys.
+- **The key of a new field.** Today the sync creates the field by name and compares the key GHL returns with the spec. On a mismatch that field is reported as failed, but it has already been created in the location: the rest of the run continues, and the next plan shows the spec key as blocked (its label is taken) and the created field as unmanaged, for a human to rename or delete. To confirm: whether your account lets you choose the key on creation. The in-memory fake derives it from the name, so the example spec names fields to match their keys.
 - **Options payload.** Today options are sent as `options` and read back from `picklistOptions`. To confirm against a test location before syncing option fields.
 - **Folder placement.** Today the sync reports placement and does not send a folder on create or update. To confirm: whether the API accepts a folder (parent) for contact fields.
 - **Retries.** None: a sync makes a handful of calls. If you hit 429s, wrap the port with the retry layer from the companion `ghl-api-client`.

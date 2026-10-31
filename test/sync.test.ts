@@ -87,11 +87,25 @@ test("new fields are created and then positioned in a second request", async () 
   );
 });
 
-test("a created field whose key differs from the spec stops with a clear message", async () => {
+test("a created field whose key differs from the spec is reported, stays created, and the next plan flags it", async () => {
   const store = new FakeFieldStore();
-  const result = await applySync(store, parseSpec({ object: "contact", fields: [{ key: "site_count", name: "Number of Sites", type: "NUMERICAL" }] }));
+  const mismatched = parseSpec({
+    object: "contact",
+    fields: [
+      { key: "site_count", name: "Number of Sites", type: "NUMERICAL" },
+      { key: "call_notes", name: "Call Notes", type: "LARGE_TEXT" },
+    ],
+  });
+  const result = await applySync(store, mismatched);
+
   assert.equal(result.failed.length, 1);
   assert.match(result.failed[0]!.message, /assigned the key contact\.number_of_sites, the spec expects contact\.site_count/);
+  assert.deepEqual(result.applied.map((a) => a.key), ["call_notes"], "the rest of the run continued");
+  assert.ok((await store.list()).some((f) => f.fieldKey === "contact.number_of_sites"), "the field exists in the location");
+  assert.deepEqual(kinds(planSync(mismatched, await store.list())).filter((k) => !k.endsWith("call_notes")), [
+    "blocked site_count",
+    "unmanaged number_of_sites",
+  ]);
 });
 
 test("folder placement is reported once the folder id is known", () => {

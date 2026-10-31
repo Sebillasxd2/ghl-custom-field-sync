@@ -24,6 +24,8 @@ export class SpecError extends Error {
 }
 
 const POSITION_STEP = 10;
+const TOP_LEVEL_KEYS = new Set(["object", "folder", "folderId", "positionStart", "fields"]);
+const FIELD_KEYS = new Set(["key", "name", "type", "placeholder", "options", "position"]);
 
 export function loadSpec(path: string): FieldSpec {
   return parseSpec(parseYaml(readFileSync(path, "utf8")));
@@ -33,8 +35,13 @@ export function loadSpec(path: string): FieldSpec {
 export function parseSpec(doc: YamlValue): FieldSpec {
   const problems: string[] = [];
   if (!isMap(doc)) throw new SpecError(["the spec must be a map with object and fields"]);
+  // A typo in a key must not be ignored: a misspelled positionStart would silently
+  // reposition every field. Unknown keys and wrong types are both problems.
+  for (const key of Object.keys(doc)) if (!TOP_LEVEL_KEYS.has(key)) problems.push(`unknown top-level key "${key}"`);
   if (doc.object !== "contact") problems.push(`object must be "contact" (got ${JSON.stringify(doc.object)})`);
   if (!Array.isArray(doc.fields) || doc.fields.length === 0) problems.push("fields must be a non-empty list");
+  for (const key of ["folder", "folderId"]) if (key in doc && typeof doc[key] !== "string") problems.push(`${key} must be a string`);
+  if ("positionStart" in doc && typeof doc.positionStart !== "number") problems.push("positionStart must be a number");
   const start = typeof doc.positionStart === "number" ? doc.positionStart : 0;
 
   const fields: SpecField[] = [];
@@ -43,6 +50,9 @@ export function parseSpec(doc: YamlValue): FieldSpec {
   (Array.isArray(doc.fields) ? doc.fields : []).forEach((raw, i) => {
     const at = `fields[${i}]`;
     if (!isMap(raw)) return void problems.push(`${at} must be a map`);
+    for (const k of Object.keys(raw)) if (!FIELD_KEYS.has(k)) problems.push(`${at}: unknown key "${k}"`);
+    if ("placeholder" in raw && typeof raw.placeholder !== "string") problems.push(`${at}: placeholder must be a string`);
+    if ("position" in raw && typeof raw.position !== "number") problems.push(`${at}: position must be a number`);
     const key = String(raw.key ?? "");
     const name = String(raw.name ?? "").trim();
     const type = String(raw.type ?? "") as DataType;

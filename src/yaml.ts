@@ -117,7 +117,7 @@ function splitFlow(body: string, no: number): string[] {
     if (quote) {
       current += ch;
       if (ch === quote) quote = "";
-    } else if (ch === '"' || ch === "'") {
+    } else if ((ch === '"' || ch === "'") && current.trim() === "") {
       quote = ch;
       current += ch;
     } else if (ch === ",") {
@@ -129,6 +129,8 @@ function splitFlow(body: string, no: number): string[] {
   }
   if (quote) throw new YamlError("unterminated string in flow list", no);
   items.push(current.trim());
+  // "[a, , b]" or "[a, b,]": an empty item would become an empty option downstream.
+  if (items.some((item) => item === "")) throw new YamlError("empty item in flow list", no);
   return items;
 }
 
@@ -142,17 +144,27 @@ function isListItem(text: string): boolean {
   return text === "-" || text.startsWith("- ");
 }
 
+/**
+ * Removes a trailing `# comment`. A quote only opens a quoted string when it starts a
+ * scalar (at the start of the line, or after `:`, `-`, `[` or `,`); in the middle of
+ * a plain value, as in `Owner's Name` or `5" pipe`, it is just a character.
+ */
 function stripComment(line: string): string {
   let quote = "";
   for (let i = 0; i < line.length; i++) {
     const ch = line[i]!;
     if (quote) {
       if (ch === quote) quote = "";
-    } else if (ch === '"' || ch === "'") {
+    } else if ((ch === '"' || ch === "'") && startsScalar(line, i)) {
       quote = ch;
     } else if (ch === "#" && (i === 0 || /\s/.test(line[i - 1]!))) {
       return line.slice(0, i);
     }
   }
   return line;
+}
+
+function startsScalar(line: string, index: number): boolean {
+  const before = line.slice(0, index).trimEnd();
+  return before === "" || /[:\-[,]$/.test(before);
 }
