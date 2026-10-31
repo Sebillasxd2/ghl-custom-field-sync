@@ -1,0 +1,45 @@
+# Prospect Profile: what a rep should know before the phone rings.
+# Fields are matched by key. Labels can change freely; keys cannot.
+object: contact
+folder: Prospect Profile
+positionStart: 100
+
+fields:
+  # Who to ask for
+  - key: decision_maker_role
+    name: Decision Maker Role
+    type: TEXT
+    placeholder: "e.g. Facilities Director"
+  - key: gatekeeper_name
+    name: Gatekeeper Name
+    type: TEXT
+
+  # When and how to reach them
+  - key: best_time_to_call
+    name: Best Time To Call
+    type: TEXT
+    placeholder: "e.g. weekdays after 3pm"
+  - key: callback_date
+    name: Callback Date
+    type: DATE
+
+  # What we know about the account
+  - key: number_of_sites
+    name: Number of Sites
+    type: NUMERICAL
+  - key: current_vendor
+    name: Current Vendor
+    type: TEXT
+  - key: contract_renewal_month
+    name: Contract Renewal Month
+    type: SINGLE_OPTIONS
+    options: [Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec, Unknown]
+
+  # What happened last time
+  - key: last_call_outcome
+    name: Last Call Outcome
+    type: SINGLE_OPTIONS
+    options: [No Answer, Gatekeeper, Callback Requested, Not Interested, Meeting Booked]
+  - key: call_notes
+    name: Call Notes
+    type: LARGE_TEXT
