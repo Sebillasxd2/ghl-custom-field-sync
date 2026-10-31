@@ -41,6 +41,7 @@ function parseList(lines: Line[], i: number, indent: number): [YamlValue[], numb
   while (i < lines.length && lines[i]!.indent === indent && isListItem(lines[i]!.text)) {
     const line = lines[i]!;
     const rest = line.text.slice(1).trimStart();
+    if (UNSUPPORTED.test(rest)) throw new YamlError(`unsupported YAML syntax: ${rest}`, line.no);
     if (!rest) {
       const child = lines[i + 1];
       if (!child || child.indent <= indent) throw new YamlError("empty list item", line.no);
@@ -64,6 +65,8 @@ function parseList(lines: Line[], i: number, indent: number): [YamlValue[], numb
 }
 
 const MAP_ENTRY = /^("[^"]*"|'[^']*'|[^\s"'#][^:]*?):(\s|$)/;
+/** Flow maps, anchors, aliases, block scalars, tags and directives: refused wherever they start. */
+const UNSUPPORTED = /^[{&*|>!%@`]/;
 
 function parseMap(lines: Line[], i: number, indent: number): [{ [key: string]: YamlValue }, number] {
   const map: { [key: string]: YamlValue } = {};
@@ -71,6 +74,7 @@ function parseMap(lines: Line[], i: number, indent: number): [{ [key: string]: Y
     const line = lines[i]!;
     if (line.indent > indent) throw new YamlError("unexpected indentation", line.no);
     if (isListItem(line.text)) break;
+    if (UNSUPPORTED.test(line.text)) throw new YamlError(`unsupported YAML syntax: ${line.text}`, line.no);
     const match = MAP_ENTRY.exec(line.text);
     if (!match) throw new YamlError(`expected "key: value", got "${line.text}"`, line.no);
     const key = unquote(match[1]!.trim());
@@ -100,9 +104,13 @@ function scalar(raw: string, no: number): YamlValue {
   }
   if (/^["']/.test(raw)) {
     if (raw.length < 2 || raw.at(-1) !== raw[0]) throw new YamlError("unterminated string", no);
+    // "a" "b" starts and ends with a quote but is two strings, not one.
+    const body = raw.slice(1, -1);
+    const stray = raw[0] === '"' ? /(^|[^\\])"/.test(body) : /'/.test(body.replace(/''/g, ""));
+    if (stray) throw new YamlError(`text after a closing quote: ${raw}`, no);
     return unquote(raw);
   }
-  if (/^[{&*|>!%@`]/.test(raw)) throw new YamlError(`unsupported YAML syntax: ${raw}`, no);
+  if (UNSUPPORTED.test(raw)) throw new YamlError(`unsupported YAML syntax: ${raw}`, no);
   if (raw === "true" || raw === "false") return raw === "true";
   if (raw === "null" || raw === "~") return null;
   if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
@@ -113,16 +121,22 @@ function splitFlow(body: string, no: number): string[] {
   const items: string[] = [];
   let current = "";
   let quote = "";
-  for (const ch of body) {
+  let closed = false;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i]!;
     if (quote) {
       current += ch;
-      if (ch === quote) quote = "";
+      if (quote === '"' && ch === "\\" && i + 1 < body.length) current += body[++i];
+      else if (ch === quote) [quote, closed] = ["", true];
     } else if ((ch === '"' || ch === "'") && current.trim() === "") {
       quote = ch;
       current += ch;
     } else if (ch === ",") {
       items.push(current.trim());
-      current = "";
+      [current, closed] = ["", false];
+    } else if (closed && !/\s/.test(ch)) {
+      // ["No Answer" "Gatekeeper"]: a missing comma would merge two options into one.
+      throw new YamlError("expected a comma after a quoted item in flow list", no);
     } else {
       current += ch;
     }
@@ -154,7 +168,8 @@ function stripComment(line: string): string {
   for (let i = 0; i < line.length; i++) {
     const ch = line[i]!;
     if (quote) {
-      if (ch === quote) quote = "";
+      if (quote === '"' && ch === "\\") i++; // an escaped quote does not close the string
+      else if (ch === quote) quote = "";
     } else if ((ch === '"' || ch === "'") && startsScalar(line, i)) {
       quote = ch;
     } else if (ch === "#" && (i === 0 || /\s/.test(line[i - 1]!))) {

@@ -70,4 +70,16 @@ test("syntax outside the subset is refused, not misread", () => {
   assert.throws(() => parseYaml("a: &anchor 1"), /unsupported/);
   assert.throws(() => parseYaml("a: |\n  text"), /unsupported/);
   assert.throws(() => parseYaml("a: {b: 1}"), /unsupported/);
+  assert.throws(() => parseYaml("fields:\n  - {key: a, name: A, type: TEXT}"), /line 2: unsupported YAML syntax/, "a flow map as a list item");
+  assert.throws(() => parseYaml("{key: a}"), /line 1: unsupported YAML syntax/, "a flow map at the start of a line");
+});
+
+test("a missing comma or a stray quote is refused instead of merging values", () => {
+  assert.throws(() => parseYaml('options: ["No Answer" "Gatekeeper", Meeting Booked]'), /line 1: expected a comma after a quoted item/);
+  assert.throws(() => parseYaml('name: "No Answer" "Gatekeeper"'), /line 1: text after a closing quote/);
+  assert.deepEqual(parseYaml('options: ["say \\"hi\\"", b]'), { options: ['say "hi"', "b"] });
+});
+
+test("an escaped quote does not end a string early, so a # inside it is not a comment", () => {
+  assert.deepEqual(parseYaml('placeholder: "ask for the \\"owner\\" # not the front desk"'), { placeholder: 'ask for the "owner" # not the front desk' });
 });

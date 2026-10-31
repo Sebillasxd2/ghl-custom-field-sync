@@ -16,17 +16,23 @@ export const bareKey = (fieldKey: string) => fieldKey.replace(/^contact\./, "");
 
 /**
  * Compares the spec with what the location has. Fields are matched by key only:
- * a label match under a different key is never treated as the same field.
- * Nothing is ever deleted; fields missing from the spec are reported as unmanaged.
+ * a label match under a different key is never treated as the same field, whether
+ * the spec field is missing (it is not adopted) or present (it is not renamed onto
+ * the other field's label). Nothing is ever deleted; fields missing from the spec
+ * are reported as unmanaged.
  */
 export function planSync(spec: FieldSpec, remote: RemoteField[]): Action[] {
   const actions: Action[] = [];
   const byKey = new Map(remote.map((field) => [bareKey(field.fieldKey), field]));
 
+  // Another remote field already carrying this label, if any.
+  const labelOwner = (want: SpecField) =>
+    remote.find((field) => bareKey(field.fieldKey) !== want.key && normalizeLabel(field.name) === normalizeLabel(want.name));
+
   for (const want of spec.fields) {
     const have = byKey.get(want.key);
     if (!have) {
-      const sameLabel = remote.find((field) => normalizeLabel(field.name) === normalizeLabel(want.name));
+      const sameLabel = labelOwner(want);
       actions.push(
         sameLabel
           ? {
@@ -50,7 +56,18 @@ export function planSync(spec: FieldSpec, remote: RemoteField[]): Action[] {
 
     const patch: FieldPatch = {};
     const before: FieldPatch = {};
-    if (have.name !== want.name) [patch.name, before.name] = [want.name, have.name];
+    if (have.name !== want.name) {
+      const taken = labelOwner(want);
+      if (taken) {
+        actions.push({
+          kind: "blocked",
+          key: want.key,
+          reason: `renaming it to "${want.name}" would give it the label of ${taken.fieldKey}; rename one of them or change the spec`,
+        });
+      } else {
+        [patch.name, before.name] = [want.name, have.name];
+      }
+    }
     if ((have.placeholder ?? "") !== (want.placeholder ?? "")) [patch.placeholder, before.placeholder] = [want.placeholder ?? "", have.placeholder ?? ""];
     if (want.options && !sameList(have.picklistOptions ?? [], want.options)) [patch.options, before.options] = [want.options, have.picklistOptions ?? []];
     if (Object.keys(patch).length) actions.push({ kind: "update", key: want.key, id: have.id, patch, before });

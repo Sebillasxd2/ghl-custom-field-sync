@@ -9,7 +9,7 @@ Custom fields get created by hand, renamed, dragged out of order and duplicated,
 ## The traps nobody documents
 
 1. **`position` only applies when it is the only key in the body.** Send `{ name, position }` and you get 200, a new name, and the old position. The sync sends content changes and position in separate requests, and the HTTP adapter refuses to combine them. Pinned by a test in [test/sync.test.ts](test/sync.test.ts).
-2. **Match by key, never by label.** Labels are display text and people edit them. A renamed label is an update to the same field. A field that has your label under a different key is a different field: the sync reports it as blocked instead of adopting it or creating a duplicate.
+2. **Match by key, never by label.** Labels are display text and people edit them. A renamed label is an update to the same field. A field that has your label under a different key is a different field: the sync reports it as blocked instead of adopting it, creating a duplicate, or renaming one of your fields onto its label.
 3. **Names that collide with standard contact fields are refused.** "Email", "First Name" or "company-name" will be rejected by GHL, so the spec is validated (ignoring case and punctuation) before anything is sent.
 4. **Folders are created in the UI.** Settings, Custom Fields, add a folder and choose the object it belongs to (that dropdown is required). The sync does not create or move folders; it lists the new fields you need to drag in, and once you put the folder's id in the spec it reports fields that sit outside it.
 5. **Creating a field solves storage, not visibility.** The value is on the contact; that does not mean the rep sees it during the call. See [visibility.md](visibility.md).

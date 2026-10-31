@@ -55,6 +55,31 @@ test("apply converges, and a second run writes nothing", async () => {
   assert.equal(store.writes(), writes, "idempotent: zero writes");
 });
 
+test("a field is not renamed onto another field's label: blocked and left for a human, not written", async () => {
+  const renaming = parseSpec({ object: "contact", fields: [{ key: "callback_date", name: "Current Vendor", type: "DATE" }] });
+  const [action] = planSync(renaming, DRIFTED).filter((a) => a.key === "callback_date" && a.kind !== "reposition");
+  assert.equal(action?.kind, "blocked");
+  assert.match(action?.kind === "blocked" ? action.reason : "", /label of contact\.vendor_name/);
+
+  const store = driftedLocation();
+  const result = await applySync(store, renaming);
+  assert.equal((await store.list()).filter((f) => f.name === "Current Vendor").length, 1, "only the field that had the label keeps it");
+  assert.deepEqual(kinds(result.needsHuman), ["blocked callback_date"]);
+});
+
+test("a created field whose position write fails is still listed for the folder", async () => {
+  const store = new FakeFieldStore();
+  const failing = Object.assign(Object.create(store), {
+    update: async () => {
+      throw new Error("429 Too Many Requests");
+    },
+  }) as FakeFieldStore;
+  const result = await applySync(failing, parseSpec({ object: "contact", folder: "Prospect Profile", fields: [{ key: "gatekeeper_name", name: "Gatekeeper Name", type: "TEXT" }] }));
+  assert.deepEqual(kinds(result.applied), ["create gatekeeper_name"]);
+  assert.deepEqual(result.failed.map((f) => `${f.action.kind} ${f.action.key}`), ["reposition gatekeeper_name"]);
+  assert.deepEqual(result.needsFolder, ["gatekeeper_name"]);
+});
+
 test("unmanaged fields are never touched", async () => {
   const store = driftedLocation();
   await applySync(store, spec);

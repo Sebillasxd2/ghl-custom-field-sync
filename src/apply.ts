@@ -36,9 +36,21 @@ export async function applySync(port: CustomFieldPort, spec: FieldSpec): Promise
         if (bareKey(created.fieldKey) !== field.key) {
           throw new Error(`GHL assigned the key ${created.fieldKey}, the spec expects contact.${field.key}; fix one of them before syncing again`);
         }
-        // Position goes in a request of its own, like every reorder.
-        if (created.position !== field.position) await port.update(created.id, { position: field.position });
+        // The field exists from here on: record it before anything else can fail, or a
+        // failed position write would hide it from the folder list for good.
+        applied.push(action);
         if (spec.folder) needsFolder.push(field.key);
+        // Position goes in a request of its own, like every reorder.
+        if (created.position !== field.position) {
+          // Counted under the create when it works; a failure is its own entry.
+          const reposition: Action = { kind: "reposition", key: field.key, id: created.id, from: created.position, to: field.position };
+          try {
+            await port.update(created.id, { position: field.position });
+          } catch (err) {
+            failed.push({ action: reposition, message: (err as Error).message });
+          }
+        }
+        continue;
       } else if (action.kind === "update") {
         await port.update(action.id, action.patch);
       } else if (action.kind === "reposition") {
